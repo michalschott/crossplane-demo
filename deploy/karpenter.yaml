@@ -1,0 +1,7 @@
+apiVersion: platform.com/v1alpha1
+kind: karpenter
+metadata:
+  name: karpenter
+spec:
+  clusterName: my-eks-cluster
+  region: us-east-2

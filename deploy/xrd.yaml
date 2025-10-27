@@ -1,0 +1,41 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: karpenters.platform.com
+spec:
+  group: platform.com
+  names:
+    kind: karpenter
+    plural: karpenters
+  scope: Cluster
+  defaultCompositionRef:
+    name: karpenter
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                clusterName:
+                  type: string
+                  description: EKS cluster name.
+                region:
+                  type: string
+                  description: The desired AWS region for the resources.
+              required:
+                - clusterName
+                - region
+            status:
+              type: object
+              properties:
+                roleARN:
+                  type: string
+                  description: The ARN of the created IAM Role.
+                policyARN:
+                  type: string
+                  description: The ARN of the created IAM Policy.

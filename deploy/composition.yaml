@@ -1,0 +1,107 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: karpenter
+spec:
+  compositeTypeRef:
+    apiVersion: platform.com/v1alpha1
+    kind: karpenter
+  mode: Pipeline
+  pipeline:
+    - step: render-iam-resources
+      functionRef:
+        name: patch-and-transform
+      input:
+        apiVersion: patch-and-transform.fn.crossplane.io/v1beta1
+        kind: PatchAndTransform
+        resources:
+          - name: iam-policy
+            base:
+              apiVersion: iam.aws.m.upbound.io/v1beta1
+              kind: Policy
+              metadata:
+                namespace: crossplane-system
+                annotations:
+                  crossplane.io/external-name: ""
+              spec:
+                providerConfigRef:
+                  name: default
+                  kind: ClusterProviderConfig
+                forProvider:
+                  description: Policy for the Karpenter.
+                  policy: '{"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]}'
+            patches:
+              - fromFieldPath: spec.clusterName
+                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.arn
+                toFieldPath: status.policyARN
+
+          - name: iam-role
+            base:
+              apiVersion: iam.aws.m.upbound.io/v1beta1
+              kind: Role
+              metadata:
+                namespace: crossplane-system
+                annotations:
+                  crossplane.io/external-name: ""
+              spec:
+                providerConfigRef:
+                  name: default
+                  kind: ClusterProviderConfig
+                forProvider:
+                  assumeRolePolicy: '{"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}]}'
+            patches:
+              - fromFieldPath: spec.clusterName
+                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.arn
+                toFieldPath: status.roleARN
+
+          - name: role-policy-attachment
+            base:
+              apiVersion: iam.aws.m.upbound.io/v1beta1
+              kind: RolePolicyAttachment
+              metadata:
+                namespace: crossplane-system
+                annotations:
+                  crossplane.io/external-name: ""
+              spec:
+                providerConfigRef:
+                  name: default
+                  kind: ClusterProviderConfig
+                forProvider: {}
+            patches:
+              - fromFieldPath: spec.clusterName
+                toFieldPath: spec.forProvider.role
+              - fromFieldPath: status.policyARN
+                toFieldPath: spec.forProvider.policyArn
+                # uncomment to not create if policyARN is missing
+                # policy:
+                #   fromFieldPath: Required
+
+          - name: pod-identity-association
+            base:
+              apiVersion: eks.aws.m.upbound.io/v1beta1
+              kind: PodIdentityAssociation
+              metadata:
+                namespace: crossplane-system
+                annotations:
+                  crossplane.io/external-name: ""
+              spec:
+                providerConfigRef:
+                  name: default
+                  kind: ClusterProviderConfig
+                forProvider:
+                  namespace: karpenter
+                  serviceAccount: karpenter
+            patches:
+              - fromFieldPath: spec.clusterName
+                toFieldPath: spec.forProvider.clusterName
+              - fromFieldPath: status.roleARN
+                toFieldPath: spec.forProvider.roleArn
+                # uncomment to not create if roleARN is missing
+                # policy:
+                #   fromFieldPath: Required
+              - fromFieldPath: spec.region
+                toFieldPath: spec.forProvider.region
